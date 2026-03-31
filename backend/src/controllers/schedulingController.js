@@ -282,6 +282,74 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+const getOperatorDashboard = async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const operatorId = req.user.id;
+
+    const [todayAssignments, capabilities, recentHistory, leaveStatus] = await Promise.all([
+      // Today's assignments with machine & plan details
+      pool.query(`
+        SELECT a.id, a.load_score, a.is_overload, a.is_transfer, a.transfer_from_line,
+               m.id AS machine_id, m.name AS machine_name, m.line, m.attention_level,
+               mt.name AS machine_type,
+               sp.shift, sp.status AS plan_status, sp.plan_date
+        FROM assignments a
+        JOIN machines m ON m.id = a.machine_id
+        JOIN machine_types mt ON mt.id = m.machine_type_id
+        JOIN schedule_plans sp ON sp.id = a.plan_id
+        WHERE a.operator_id = $1 AND sp.plan_date = $2
+        ORDER BY sp.shift, m.line, m.name
+      `, [operatorId, today]),
+
+      // Operator capabilities
+      pool.query(`
+        SELECT mt.name AS machine_type, oc.granted_at
+        FROM operator_capabilities oc
+        JOIN machine_types mt ON mt.id = oc.machine_type_id
+        WHERE oc.operator_id = $1
+        ORDER BY mt.name
+      `, [operatorId]),
+
+      // Last 7 days assignment history
+      pool.query(`
+        SELECT sp.plan_date, sp.shift, m.name AS machine_name, m.line, 
+               a.load_score, sp.status AS plan_status
+        FROM assignments a
+        JOIN machines m ON m.id = a.machine_id
+        JOIN schedule_plans sp ON sp.id = a.plan_id
+        WHERE a.operator_id = $1 AND sp.plan_date >= $2::date - INTERVAL '7 days' AND sp.plan_date < $2::date
+        ORDER BY sp.plan_date DESC, sp.shift
+      `, [operatorId, today]),
+
+      // Active/upcoming leave
+      pool.query(`
+        SELECT leave_date, leave_type, shift, approval_status
+        FROM operator_leaves
+        WHERE operator_id = $1 AND leave_date >= $2
+        ORDER BY leave_date LIMIT 5
+      `, [operatorId, today]),
+    ]);
+
+    // Calculate total load for today
+    const totalLoad = todayAssignments.rows.reduce((sum, a) => sum + (parseFloat(a.load_score) || 0), 0);
+
+    res.json({
+      today: {
+        assignments: todayAssignments.rows,
+        totalLoad: Math.round(totalLoad * 100) / 100,
+        machineCount: todayAssignments.rows.length,
+      },
+      capabilities: capabilities.rows,
+      recentHistory: recentHistory.rows,
+      leaves: leaveStatus.rows,
+    });
+  } catch (err) {
+    console.error('Operator dashboard error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 const engineerApprove = async (req, res) => {
   try {
     const { planId } = req.params;
@@ -355,4 +423,4 @@ const cancelApproval = async (req, res) => {
   }
 };
 
-module.exports = { getOrCreatePlan, assignOperator, removeAssignment, submitPlan, reviewPlan, engineerApprove, cancelApproval, getPlans, getDashboardStats };
+module.exports = { getOrCreatePlan, assignOperator, removeAssignment, submitPlan, reviewPlan, engineerApprove, cancelApproval, getPlans, getDashboardStats, getOperatorDashboard };

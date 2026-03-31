@@ -132,3 +132,106 @@
   font-size: 0.8125rem;
   color: #6b7280;
 }
+
+/* Operator Dashboard Styles */
+.opTable {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-lg);
+  background: #fff;
+}
+
+.opTable table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.opTable thead {
+  background: #f9fafb;
+}
+
+.opTable th {
+  text-align: left;
+  padding: 10px 14px;
+  font-weight: 500;
+  color: #6b7280;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.opTable td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.opTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.opTable tbody tr:hover {
+  background: #f9fafb;
+}
+
+.loadHigh {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.loadNormal {
+  color: #059669;
+  font-weight: 500;
+}
+
+.capGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.capCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+}
+
+.capIcon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #059669;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 0.875rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.capName {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.capDate {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.emptyCard {
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.875rem;
+}

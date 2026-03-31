@@ -10,6 +10,7 @@ export const authApi = {
 // Dashboard
 export const dashboardApi = {
   getStats: () => api.get('/dashboard/stats'),
+  getOperatorDashboard: () => api.get('/dashboard/operator'),
 };
 
 // Production lines

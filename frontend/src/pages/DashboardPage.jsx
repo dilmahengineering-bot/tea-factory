@@ -18,6 +18,193 @@ const MODULE_LINKS = {
   'User Management':  '/user-management',
 };
 
+function OperatorDashboard({ user, today }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    dashboardApi.getOperatorDashboard()
+      .then(res => setData(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className={styles.loadWrap}><div className="spinner spinner-lg" /></div>;
+
+  const { today: todayData, capabilities, recentHistory, leaves } = data || {};
+
+  return (
+    <>
+      {/* Today's summary cards */}
+      <div className={styles.statsGrid}>
+        <div className="stat-card">
+          <div className="stat-value" style={{color:'var(--accent)'}}>
+            {todayData?.machineCount || 0}
+          </div>
+          <div className="stat-label">Machines today</div>
+          <div className="stat-sub">Assigned to you</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value" style={{color: (todayData?.totalLoad || 0) > 1 ? 'var(--danger)' : 'var(--success)'}}>
+            {todayData?.totalLoad || 0}
+          </div>
+          <div className="stat-label">Total load</div>
+          <div className="stat-sub">{(todayData?.totalLoad || 0) > 1 ? 'Overloaded' : 'Normal'}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value" style={{color:'var(--teal-400)'}}>
+            {capabilities?.length || 0}
+          </div>
+          <div className="stat-label">Capabilities</div>
+          <div className="stat-sub">Machine types certified</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value" style={{color:'var(--info)'}}>
+            {leaves?.length || 0}
+          </div>
+          <div className="stat-label">Upcoming leaves</div>
+          <div className="stat-sub">Scheduled</div>
+        </div>
+      </div>
+
+      {/* Today's assigned machines */}
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Today's assignments</h3>
+        {todayData?.assignments?.length > 0 ? (
+          <div className={styles.opTable}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Machine</th>
+                  <th>Type</th>
+                  <th>Line</th>
+                  <th>Shift</th>
+                  <th>Load</th>
+                  <th>Attention</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {todayData.assignments.map(a => (
+                  <tr key={a.id}>
+                    <td><strong>{a.machine_name}</strong></td>
+                    <td>{a.machine_type}</td>
+                    <td><span className={styles.lineTag}>{a.line}</span></td>
+                    <td><span className={`badge badge-${a.shift === 'day' ? 'info' : 'secondary'}`}>{a.shift}</span></td>
+                    <td>
+                      <span className={a.is_overload ? styles.loadHigh : styles.loadNormal}>
+                        {a.load_score}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge badge-${a.attention_level === 'HIGH' ? 'danger' : a.attention_level === 'MED' ? 'warning' : 'success'}`}>
+                        {a.attention_level}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge badge-${a.plan_status === 'approved' || a.plan_status === 'engineer_approved' ? 'success' : a.plan_status === 'submitted' ? 'info' : 'secondary'}`}>
+                        {a.plan_status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className={styles.emptyCard}>No machines assigned for today yet.</div>
+        )}
+      </div>
+
+      {/* Capabilities */}
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Your capabilities</h3>
+        {capabilities?.length > 0 ? (
+          <div className={styles.capGrid}>
+            {capabilities.map((c, i) => (
+              <div key={i} className={styles.capCard}>
+                <span className={styles.capIcon}>✓</span>
+                <div>
+                  <div className={styles.capName}>{c.machine_type}</div>
+                  <div className={styles.capDate}>Since {new Date(c.granted_at).toLocaleDateString('en-GB')}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.emptyCard}>No capabilities granted yet. Contact your engineer.</div>
+        )}
+      </div>
+
+      {/* Recent history */}
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Recent history (last 7 days)</h3>
+        {recentHistory?.length > 0 ? (
+          <div className={styles.opTable}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Shift</th>
+                  <th>Machine</th>
+                  <th>Line</th>
+                  <th>Load</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentHistory.map((h, i) => (
+                  <tr key={i}>
+                    <td>{new Date(h.plan_date).toLocaleDateString('en-GB')}</td>
+                    <td><span className={`badge badge-${h.shift === 'day' ? 'info' : 'secondary'}`}>{h.shift}</span></td>
+                    <td>{h.machine_name}</td>
+                    <td><span className={styles.lineTag}>{h.line}</span></td>
+                    <td>{h.load_score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className={styles.emptyCard}>No assignment history for the past 7 days.</div>
+        )}
+      </div>
+
+      {/* Upcoming leaves */}
+      {leaves?.length > 0 && (
+        <div className={styles.section}>
+          <h3 className={styles.sectionTitle}>Upcoming leaves</h3>
+          <div className={styles.opTable}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Shift</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaves.map((l, i) => (
+                  <tr key={i}>
+                    <td>{new Date(l.leave_date).toLocaleDateString('en-GB')}</td>
+                    <td>{l.leave_type}</td>
+                    <td>{l.shift}</td>
+                    <td>
+                      <span className={`badge badge-${l.approval_status === 'approved' ? 'success' : l.approval_status === 'rejected' ? 'danger' : 'warning'}`}>
+                        {l.approval_status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const [stats, setStats] = useState(null);
@@ -48,7 +235,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {loading ? (
+      {user?.role === 'operator' ? (
+        <OperatorDashboard user={user} today={today} />
+      ) : loading ? (
         <div className={styles.loadWrap}><div className="spinner spinner-lg" /></div>
       ) : (
         <>
