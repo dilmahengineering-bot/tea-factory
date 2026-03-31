@@ -67,12 +67,13 @@ router.get('/pool/line-operators', auth, requireTechnician, poolCtrl.getLineOper
 router.delete('/pool/:poolId', auth, requireTechnician, poolCtrl.removeOperatorFromPool);
 router.post('/pool/mark-allocated', auth, requireTechnician, poolCtrl.markPoolOperatorAllocated);
 
-// Operator Leave Management (technician+)
-router.post('/leaves', auth, requireTechnician, leaveCtrl.createOrUpdateLeave);
+// Operator Leave Management (self-service for operators/technicians, management for technician+)
+router.post('/leaves', auth, leaveCtrl.createOrUpdateLeave);
+router.get('/leaves/my', auth, leaveCtrl.getMyLeaves);
 router.get('/leaves/operator/:operatorId', auth, requireTechnician, leaveCtrl.getOperatorLeaves);
 router.get('/leaves/line', auth, requireTechnician, leaveCtrl.getLineLeaves);
 router.get('/leaves/check', auth, requireTechnician, leaveCtrl.checkOperatorLeave);
 router.post('/leaves/approve', auth, requireEngineer, leaveCtrl.approveLeave);
-router.delete('/leaves/:leaveId', auth, requireTechnician, leaveCtrl.deleteLeave);
+router.delete('/leaves/:leaveId', auth, leaveCtrl.deleteLeave);
 
 module.exports = router;

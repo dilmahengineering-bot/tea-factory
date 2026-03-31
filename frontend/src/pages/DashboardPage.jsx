@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { dashboardApi } from '../api/services';
+import { dashboardApi, leaveApi } from '../api/services';
 import useAuthStore from '../store/authStore';
 import styles from './DashboardPage.module.css';
 
@@ -21,13 +21,61 @@ const MODULE_LINKS = {
 function OperatorDashboard({ user, today }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [myLeaves, setMyLeaves] = useState([]);
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [leaveDate, setLeaveDate] = useState('');
+  const [leaveType, setLeaveType] = useState('sick');
+  const [leaveShift, setLeaveShift] = useState('both');
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveLoading, setLeaveLoading] = useState(false);
 
   useEffect(() => {
     dashboardApi.getOperatorDashboard()
       .then(res => setData(res.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+    loadMyLeaves();
   }, []);
+
+  const loadMyLeaves = () => {
+    leaveApi.getMyLeaves()
+      .then(res => setMyLeaves(res.data))
+      .catch(() => {});
+  };
+
+  const handleSubmitLeave = async () => {
+    if (!leaveDate) return;
+    setLeaveLoading(true);
+    try {
+      await leaveApi.createOrUpdate({
+        operatorId: user.id,
+        leaveDate,
+        leaveType,
+        shift: leaveShift,
+        reason: leaveReason,
+      });
+      setShowLeaveForm(false);
+      setLeaveDate('');
+      setLeaveType('sick');
+      setLeaveShift('both');
+      setLeaveReason('');
+      loadMyLeaves();
+    } catch {
+      alert('Failed to submit leave request');
+    } finally {
+      setLeaveLoading(false);
+    }
+  };
+
+  const handleDeleteLeave = async (leaveId) => {
+    if (!window.confirm('Cancel this leave request?')) return;
+    try {
+      await leaveApi.deleteLeave(leaveId);
+      loadMyLeaves();
+    } catch {
+      alert('Failed to cancel leave');
+    }
+  };
 
   if (loading) return <div className={styles.loadWrap}><div className="spinner spinner-lg" /></div>;
 
@@ -220,10 +268,51 @@ function OperatorDashboard({ user, today }) {
         )}
       </div>
 
-      {/* Upcoming leaves */}
-      {leaves?.length > 0 && (
-        <div className={styles.section}>
-          <h3 className={styles.sectionTitle}>Upcoming leaves</h3>
+      {/* Leave Management */}
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h3 className={styles.sectionTitle}>Leave management</h3>
+          <button className="btn btn-sm btn-primary" onClick={() => setShowLeaveForm(v => !v)}>
+            {showLeaveForm ? 'Cancel' : '+ Request leave'}
+          </button>
+        </div>
+
+        {showLeaveForm && (
+          <div className={styles.leaveForm}>
+            <div className={styles.formRow}>
+              <label>Date</label>
+              <input type="date" value={leaveDate} onChange={e => setLeaveDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]} />
+            </div>
+            <div className={styles.formRow}>
+              <label>Type</label>
+              <select value={leaveType} onChange={e => setLeaveType(e.target.value)}>
+                <option value="sick">Sick</option>
+                <option value="vacation">Vacation</option>
+                <option value="emergency">Emergency</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className={styles.formRow}>
+              <label>Shift</label>
+              <select value={leaveShift} onChange={e => setLeaveShift(e.target.value)}>
+                <option value="both">Both (full day)</option>
+                <option value="day">Day only</option>
+                <option value="night">Night only</option>
+              </select>
+            </div>
+            <div className={styles.formRow}>
+              <label>Reason</label>
+              <input type="text" value={leaveReason} onChange={e => setLeaveReason(e.target.value)}
+                placeholder="Optional reason..." />
+            </div>
+            <button className="btn btn-primary" onClick={handleSubmitLeave} disabled={leaveLoading || !leaveDate}>
+              {leaveLoading ? 'Submitting...' : 'Submit leave request'}
+            </button>
+          </div>
+        )}
+
+        {myLeaves.length > 0 ? (
           <div className={styles.opTable}>
             <table>
               <thead>
@@ -231,27 +320,37 @@ function OperatorDashboard({ user, today }) {
                   <th>Date</th>
                   <th>Type</th>
                   <th>Shift</th>
+                  <th>Reason</th>
                   <th>Status</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {leaves.map((l, i) => (
-                  <tr key={i}>
+                {myLeaves.map(l => (
+                  <tr key={l.id}>
                     <td>{new Date(l.leave_date).toLocaleDateString('en-GB')}</td>
                     <td>{l.leave_type}</td>
                     <td>{l.shift}</td>
+                    <td>{l.reason || '-'}</td>
                     <td>
                       <span className={`badge badge-${l.approval_status === 'approved' ? 'success' : l.approval_status === 'rejected' ? 'danger' : 'warning'}`}>
                         {l.approval_status}
                       </span>
+                    </td>
+                    <td>
+                      {l.approval_status === 'pending' && (
+                        <button className="btn btn-sm btn-danger" onClick={() => handleDeleteLeave(l.id)}>✗</button>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className={styles.emptyCard}>No leave records.</div>
+        )}
+      </div>
     </>
   );
 }
@@ -261,12 +360,62 @@ export default function DashboardPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Self-service leave state (for technicians)
+  const [techLeaves, setTechLeaves] = useState([]);
+  const [showTechLeaveForm, setShowTechLeaveForm] = useState(false);
+  const [techLeaveDate, setTechLeaveDate] = useState('');
+  const [techLeaveType, setTechLeaveType] = useState('sick');
+  const [techLeaveShift, setTechLeaveShift] = useState('both');
+  const [techLeaveReason, setTechLeaveReason] = useState('');
+  const [techLeaveLoading, setTechLeaveLoading] = useState(false);
+
   useEffect(() => {
     dashboardApi.getStats()
       .then(res => setStats(res.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+    if (user?.role === 'technician') loadTechLeaves();
   }, []);
+
+  const loadTechLeaves = () => {
+    leaveApi.getMyLeaves()
+      .then(res => setTechLeaves(res.data))
+      .catch(() => {});
+  };
+
+  const handleTechSubmitLeave = async () => {
+    if (!techLeaveDate) return;
+    setTechLeaveLoading(true);
+    try {
+      await leaveApi.createOrUpdate({
+        operatorId: user.id,
+        leaveDate: techLeaveDate,
+        leaveType: techLeaveType,
+        shift: techLeaveShift,
+        reason: techLeaveReason,
+      });
+      setShowTechLeaveForm(false);
+      setTechLeaveDate('');
+      setTechLeaveType('sick');
+      setTechLeaveShift('both');
+      setTechLeaveReason('');
+      loadTechLeaves();
+    } catch {
+      alert('Failed to submit leave request');
+    } finally {
+      setTechLeaveLoading(false);
+    }
+  };
+
+  const handleTechDeleteLeave = async (leaveId) => {
+    if (!window.confirm('Cancel this leave request?')) return;
+    try {
+      await leaveApi.deleteLeave(leaveId);
+      loadTechLeaves();
+    } catch {
+      alert('Failed to cancel leave');
+    }
+  };
 
   const today = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   const myAccess = ROLE_ACCESS[user?.role] || [];
@@ -386,6 +535,89 @@ export default function DashboardPage() {
                   </Link>
                 )}
               </div>
+            </div>
+          )}
+
+          {user?.role === 'technician' && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <h3 className={styles.sectionTitle}>My leave</h3>
+                <button className="btn btn-sm btn-primary" onClick={() => setShowTechLeaveForm(v => !v)}>
+                  {showTechLeaveForm ? 'Cancel' : '+ Request leave'}
+                </button>
+              </div>
+              {showTechLeaveForm && (
+                <div className={styles.leaveForm}>
+                  <div className={styles.formRow}>
+                    <label>Date</label>
+                    <input type="date" value={techLeaveDate} onChange={e => setTechLeaveDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]} />
+                  </div>
+                  <div className={styles.formRow}>
+                    <label>Type</label>
+                    <select value={techLeaveType} onChange={e => setTechLeaveType(e.target.value)}>
+                      <option value="sick">Sick</option>
+                      <option value="vacation">Vacation</option>
+                      <option value="emergency">Emergency</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div className={styles.formRow}>
+                    <label>Shift</label>
+                    <select value={techLeaveShift} onChange={e => setTechLeaveShift(e.target.value)}>
+                      <option value="both">Both (full day)</option>
+                      <option value="day">Day only</option>
+                      <option value="night">Night only</option>
+                    </select>
+                  </div>
+                  <div className={styles.formRow}>
+                    <label>Reason</label>
+                    <input type="text" value={techLeaveReason} onChange={e => setTechLeaveReason(e.target.value)}
+                      placeholder="Optional reason..." />
+                  </div>
+                  <button className="btn btn-primary" onClick={handleTechSubmitLeave} disabled={techLeaveLoading || !techLeaveDate}>
+                    {techLeaveLoading ? 'Submitting...' : 'Submit leave request'}
+                  </button>
+                </div>
+              )}
+              {techLeaves.length > 0 ? (
+                <div className={styles.opTable}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Shift</th>
+                        <th>Reason</th>
+                        <th>Status</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {techLeaves.map(l => (
+                        <tr key={l.id}>
+                          <td>{new Date(l.leave_date).toLocaleDateString('en-GB')}</td>
+                          <td>{l.leave_type}</td>
+                          <td>{l.shift}</td>
+                          <td>{l.reason || '-'}</td>
+                          <td>
+                            <span className={`badge badge-${l.approval_status === 'approved' ? 'success' : l.approval_status === 'rejected' ? 'danger' : 'warning'}`}>
+                              {l.approval_status}
+                            </span>
+                          </td>
+                          <td>
+                            {l.approval_status === 'pending' && (
+                              <button className="btn btn-sm btn-danger" onClick={() => handleTechDeleteLeave(l.id)}>✗</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className={styles.emptyCard}>No leave records.</div>
+              )}
             </div>
           )}
         </>

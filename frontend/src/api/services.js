@@ -77,6 +77,7 @@ export const poolApi = {
 // Operator Leave Management
 export const leaveApi = {
   createOrUpdate: (data) => api.post('/leaves', data),
+  getMyLeaves: (params) => api.get('/leaves/my', { params }),
   getOperatorLeaves: (operatorId, params) => api.get(`/leaves/operator/${operatorId}`, { params }),
   getLineLeaves: (params) => api.get('/leaves/line', { params }),
   checkLeave: (params) => api.get('/leaves/check', { params }),

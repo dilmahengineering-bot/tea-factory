@@ -11,19 +11,21 @@ const createOrUpdateLeave = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
     
-    // Only technicians and admins can create leave records
-    if (!['technician', 'admin', 'engineer'].includes(userRole)) {
+    const { operatorId, leaveDate, leaveType, shift = 'both', reason } = req.body;
+
+    // Operators and technicians can mark leave for themselves
+    const isSelfLeave = operatorId === userId;
+
+    if (!isSelfLeave && !['technician', 'admin', 'engineer'].includes(userRole)) {
       return res.status(403).json({ error: 'Access denied' });
     }
-
-    const { operatorId, leaveDate, leaveType, shift = 'both', reason } = req.body;
 
     if (!operatorId || !leaveDate || !leaveType) {
       return res.status(400).json({ error: 'Missing required fields: operatorId, leaveDate, leaveType' });
     }
 
-    // Technician can only create leave for operators on their line
-    if (userRole === 'technician') {
+    // Technician can only create leave for operators on their line (or themselves)
+    if (userRole === 'technician' && !isSelfLeave) {
       const opCheck = await pool.query(
         'SELECT dedicated_line FROM users WHERE id = $1 AND role = $2',
         [operatorId, 'operator']
@@ -193,10 +195,6 @@ const deleteLeave = async (req, res) => {
     const userRole = req.user.role;
     const { leaveId } = req.params;
 
-    if (!['admin', 'engineer', 'technician'].includes(userRole)) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
     // Get leave record to check permissions
     const leaveRecord = await pool.query(
       'SELECT id, operator_id, created_by FROM operator_leaves WHERE id = $1',
@@ -207,8 +205,13 @@ const deleteLeave = async (req, res) => {
       return res.status(404).json({ error: 'Leave not found' });
     }
 
-    // Technicians can only delete their own leave records
-    if (userRole === 'technician' && leaveRecord.rows[0].created_by !== req.user.id) {
+    // Operators can only delete their own leave records
+    if (userRole === 'operator' && leaveRecord.rows[0].operator_id !== req.user.id) {
+      return res.status(403).json({ error: 'You can only delete your own leave records' });
+    }
+
+    // Technicians can only delete records they created or their own
+    if (userRole === 'technician' && leaveRecord.rows[0].created_by !== req.user.id && leaveRecord.rows[0].operator_id !== req.user.id) {
       return res.status(403).json({ error: 'You can only delete your own leave records' });
     }
 
@@ -263,10 +266,43 @@ const getLineLeaves = async (req, res) => {
   }
 };
 
+// Get own leaves (for operators/technicians viewing their own)
+const getMyLeaves = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { fromDate, toDate } = req.query;
+
+    let query = `
+      SELECT ol.id, ol.operator_id, ol.leave_date, ol.leave_type, ol.shift, 
+             ol.reason, ol.approval_status, ol.created_at
+      FROM operator_leaves ol
+      WHERE ol.operator_id = $1
+    `;
+    const params = [userId];
+
+    if (fromDate) {
+      params.push(fromDate);
+      query += ` AND ol.leave_date >= $${params.length}`;
+    }
+    if (toDate) {
+      params.push(toDate);
+      query += ` AND ol.leave_date <= $${params.length}`;
+    }
+
+    query += ` ORDER BY ol.leave_date DESC LIMIT 20`;
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error in getMyLeaves:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createOrUpdateLeave,
   approveLeave,
   getOperatorLeaves,
+  getMyLeaves,
   checkOperatorLeave,
   deleteLeave,
   getLineLeaves
