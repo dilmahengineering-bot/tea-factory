@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 import { dashboardApi, leaveApi } from '../api/services';
 import useAuthStore from '../store/authStore';
 import styles from './DashboardPage.module.css';
@@ -355,6 +356,262 @@ function OperatorDashboard({ user, today }) {
   );
 }
 
+const CHART_COLORS = ['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2'];
+
+function AdminDashboard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    dashboardApi.getAdminDashboard()
+      .then(res => setData(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className={styles.loadWrap}><div className="spinner spinner-lg" /></div>;
+  if (!data) return <div className={styles.emptyCard}>Failed to load admin dashboard.</div>;
+
+  const { lines, totals, planStatus, weeklyTrend, weekLeaves, machinesByType, users } = data;
+
+  // Chart data: Line overview (operators, assigned, leaves, load gap)
+  const lineChartData = lines.map(l => ({
+    name: l.lineCode,
+    'Total Operators': l.totalOperators,
+    'Assigned': l.assignedOperators,
+    'On Leave': l.leavesToday,
+    'Available': l.availableOperators,
+  }));
+
+  const loadChartData = lines.map(l => ({
+    name: l.lineCode,
+    'Total Load': l.totalLoad,
+    'Capacity': l.totalMachineCapacity,
+    'Load Gap': l.loadGap > 0 ? l.loadGap : 0,
+  }));
+
+  // Weekly trend
+  const trendData = weeklyTrend.map(d => ({
+    date: new Date(d.plan_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }),
+    'Operators': d.operators_assigned,
+    'Assignments': d.total_assignments,
+    'Avg Load': parseFloat(d.avg_load),
+  }));
+
+  // Leave by day
+  const leaveTrendData = {};
+  weekLeaves.forEach(d => {
+    const key = new Date(d.leave_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
+    if (!leaveTrendData[key]) leaveTrendData[key] = { date: key };
+    leaveTrendData[key][d.leave_type] = (leaveTrendData[key][d.leave_type] || 0) + d.leave_count;
+    leaveTrendData[key].total = (leaveTrendData[key].total || 0) + d.leave_count;
+  });
+  const leaveTrendArr = Object.values(leaveTrendData);
+
+  // Role pie
+  const rolePieData = Object.entries(users).map(([role, count]) => ({ name: role, value: count }));
+
+  // Machine type pie
+  const machinePieData = machinesByType.map(m => ({ name: m.machine_type, value: m.count }));
+
+  return (
+    <>
+      {/* Summary cards */}
+      <div className={styles.statsGrid}>
+        <div className="stat-card">
+          <div className="stat-value" style={{color:'var(--accent)'}}>{totals.totalLines}</div>
+          <div className="stat-label">Production lines</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{totals.totalMachines}</div>
+          <div className="stat-label">Active machines</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value" style={{color:'var(--teal-400)'}}>{totals.totalOperators}</div>
+          <div className="stat-label">Total operators</div>
+          <div className="stat-sub">{totals.totalAssigned} assigned today</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value" style={{color:'var(--danger)'}}>{totals.totalLeaves}</div>
+          <div className="stat-label">On leave today</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value" style={{color: totals.totalLoadGap > 0 ? 'var(--warning)' : 'var(--success)'}}>
+            {totals.totalLoadGap}
+          </div>
+          <div className="stat-label">Total load gap</div>
+          <div className="stat-sub">{totals.totalLoadGap > 0 ? 'Unfilled positions' : 'Fully staffed'}</div>
+        </div>
+      </div>
+
+      {/* Line-by-line table */}
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Production line overview</h3>
+        <div className={styles.opTable}>
+          <table>
+            <thead>
+              <tr>
+                <th>Line</th>
+                <th>Status</th>
+                <th>Engineer</th>
+                <th>Machines</th>
+                <th>Operators</th>
+                <th>Assigned</th>
+                <th>On Leave</th>
+                <th>Load</th>
+                <th>Capacity</th>
+                <th>Load Gap</th>
+                <th>Overloads</th>
+                <th>Transfers</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map(l => (
+                <tr key={l.lineCode}>
+                  <td><strong>{l.lineCode}</strong><br/><span className="text-muted" style={{fontSize:'0.75rem'}}>{l.lineName}</span></td>
+                  <td><span className={`badge badge-${l.status === 'active' ? 'success' : 'warning'}`}>{l.status}</span></td>
+                  <td>{l.engineerName || '-'}</td>
+                  <td>{l.machines}</td>
+                  <td>{l.totalOperators}</td>
+                  <td><strong>{l.assignedOperators}</strong></td>
+                  <td style={{color: l.leavesToday > 0 ? '#dc2626' : 'inherit'}}>{l.leavesToday}</td>
+                  <td>{l.totalLoad}</td>
+                  <td>{l.totalMachineCapacity}</td>
+                  <td>
+                    <span className={l.loadGap > 0 ? styles.loadHigh : styles.loadNormal}>
+                      {l.loadGap > 0 ? `${l.loadGap} unfilled` : 'OK'}
+                    </span>
+                  </td>
+                  <td style={{color: l.overloadCount > 0 ? '#dc2626' : 'inherit'}}>{l.overloadCount}</td>
+                  <td>{l.transferCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Charts row 1: Operators by line + Load by line */}
+      <div className={styles.chartRow}>
+        <div className={styles.chartCard}>
+          <h3 className={styles.sectionTitle}>Operators by line</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={lineChartData} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="name" fontSize={12} />
+              <YAxis fontSize={12} allowDecimals={false} />
+              <Tooltip />
+              <Legend wrapperStyle={{fontSize: 12}} />
+              <Bar dataKey="Total Operators" fill="#2563eb" radius={[4,4,0,0]} />
+              <Bar dataKey="Assigned" fill="#059669" radius={[4,4,0,0]} />
+              <Bar dataKey="On Leave" fill="#dc2626" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className={styles.chartCard}>
+          <h3 className={styles.sectionTitle}>Load vs capacity by line</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={loadChartData} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="name" fontSize={12} />
+              <YAxis fontSize={12} allowDecimals={false} />
+              <Tooltip />
+              <Legend wrapperStyle={{fontSize: 12}} />
+              <Bar dataKey="Total Load" fill="#d97706" radius={[4,4,0,0]} />
+              <Bar dataKey="Capacity" fill="#2563eb" radius={[4,4,0,0]} />
+              <Bar dataKey="Load Gap" fill="#ef4444" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Charts row 2: Weekly trend + Leave trend */}
+      <div className={styles.chartRow}>
+        <div className={styles.chartCard}>
+          <h3 className={styles.sectionTitle}>Weekly assignment trend</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={trendData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="date" fontSize={12} />
+              <YAxis fontSize={12} allowDecimals={false} />
+              <Tooltip />
+              <Legend wrapperStyle={{fontSize: 12}} />
+              <Area type="monotone" dataKey="Operators" stroke="#2563eb" fill="#dbeafe" strokeWidth={2} />
+              <Area type="monotone" dataKey="Assignments" stroke="#059669" fill="#dcfce7" strokeWidth={2} />
+              <Line type="monotone" dataKey="Avg Load" stroke="#d97706" strokeWidth={2} dot={{r: 3}} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className={styles.chartCard}>
+          <h3 className={styles.sectionTitle}>Leave trend (this week)</h3>
+          {leaveTrendArr.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={leaveTrendArr}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" fontSize={12} />
+                <YAxis fontSize={12} allowDecimals={false} />
+                <Tooltip />
+                <Legend wrapperStyle={{fontSize: 12}} />
+                <Bar dataKey="sick" fill="#dc2626" stackId="a" radius={[0,0,0,0]} />
+                <Bar dataKey="vacation" fill="#2563eb" stackId="a" radius={[0,0,0,0]} />
+                <Bar dataKey="emergency" fill="#d97706" stackId="a" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className={styles.emptyCard}>No leaves this week.</div>
+          )}
+        </div>
+      </div>
+
+      {/* Charts row 3: Pie charts */}
+      <div className={styles.chartRow}>
+        <div className={styles.chartCard}>
+          <h3 className={styles.sectionTitle}>Users by role</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={rolePieData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({name, value}) => `${name}: ${value}`} labelLine={true}>
+                {rolePieData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className={styles.chartCard}>
+          <h3 className={styles.sectionTitle}>Machines by type</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={machinePieData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({name, value}) => `${name}: ${value}`} labelLine={true}>
+                {machinePieData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Today's plan status */}
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Today's plan status</h3>
+        {planStatus.length > 0 ? (
+          <div className={styles.planGrid}>
+            {planStatus.map((p, i) => (
+              <div key={i} className={styles.planCard}>
+                <div className={styles.planLine}>{p.line}</div>
+                <div className={styles.planShift}>{p.shift}</div>
+                <span className={`badge badge-${p.status === 'approved' || p.status === 'engineer_approved' ? 'success' : p.status === 'submitted' ? 'info' : p.status === 'rejected' ? 'danger' : 'secondary'}`}>
+                  {p.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.emptyCard}>No plans created for today yet.</div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const [stats, setStats] = useState(null);
@@ -437,6 +694,8 @@ export default function DashboardPage() {
 
       {user?.role === 'operator' ? (
         <OperatorDashboard user={user} today={today} />
+      ) : user?.role === 'admin' ? (
+        <AdminDashboard />
       ) : loading ? (
         <div className={styles.loadWrap}><div className="spinner spinner-lg" /></div>
       ) : (

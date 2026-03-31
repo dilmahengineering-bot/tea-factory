@@ -438,4 +438,167 @@ const cancelApproval = async (req, res) => {
   }
 };
 
-module.exports = { getOrCreatePlan, assignOperator, removeAssignment, submitPlan, reviewPlan, engineerApprove, cancelApproval, getPlans, getDashboardStats, getOperatorDashboard };
+const getAdminDashboard = async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    const [
+      lineDetails, lineMachines, lineOperators, lineAssignments,
+      todayLeaves, weekLeaves, planStatusData, weeklyTrend,
+      userCounts, machinesByType
+    ] = await Promise.all([
+      // Production lines
+      pool.query(`
+        SELECT pl.id, pl.line_code, pl.line_name, pl.capacity, pl.status,
+               u.name AS engineer_name
+        FROM production_lines pl
+        LEFT JOIN users u ON u.id = pl.assigned_engineer_id
+        ORDER BY pl.line_code
+      `),
+
+      // Machines per line
+      pool.query(`
+        SELECT m.line, COUNT(*)::int AS machine_count,
+               SUM(m.max_operators)::int AS total_capacity
+        FROM machines m WHERE m.is_active = true
+        GROUP BY m.line
+      `),
+
+      // Operators per line (dedicated)
+      pool.query(`
+        SELECT dedicated_line AS line, COUNT(*)::int AS operator_count
+        FROM users WHERE role = 'operator' AND is_active = true AND dedicated_line IS NOT NULL
+        GROUP BY dedicated_line
+      `),
+
+      // Today's assignments per line with load
+      pool.query(`
+        SELECT sp.line,
+               COUNT(DISTINCT a.operator_id)::int AS assigned_operators,
+               COALESCE(SUM(a.load_score), 0)::numeric(10,2) AS total_load,
+               COUNT(a.id)::int AS assignment_count,
+               COUNT(CASE WHEN a.is_overload THEN 1 END)::int AS overload_count,
+               COUNT(CASE WHEN a.is_transfer THEN 1 END)::int AS transfer_count
+        FROM schedule_plans sp
+        LEFT JOIN assignments a ON a.plan_id = sp.id
+        WHERE sp.plan_date = $1
+        GROUP BY sp.line
+      `, [today]),
+
+      // Today's leaves
+      pool.query(`
+        SELECT u.dedicated_line AS line, COUNT(*)::int AS leave_count
+        FROM operator_leaves ol
+        JOIN users u ON u.id = ol.operator_id
+        WHERE ol.leave_date = $1 AND ol.approval_status IN ('approved', 'pending')
+        GROUP BY u.dedicated_line
+      `, [today]),
+
+      // This week's leaves by day
+      pool.query(`
+        SELECT ol.leave_date, COUNT(*)::int AS leave_count, ol.leave_type
+        FROM operator_leaves ol
+        WHERE ol.leave_date >= $1::date AND ol.leave_date <= $1::date + INTERVAL '6 days'
+          AND ol.approval_status IN ('approved', 'pending')
+        GROUP BY ol.leave_date, ol.leave_type
+        ORDER BY ol.leave_date
+      `, [today]),
+
+      // Plan status breakdown for today
+      pool.query(`
+        SELECT line, shift, status FROM schedule_plans WHERE plan_date = $1 ORDER BY line, shift
+      `, [today]),
+
+      // Weekly assignment trend (last 7 days)
+      pool.query(`
+        SELECT sp.plan_date,
+               COUNT(DISTINCT a.operator_id)::int AS operators_assigned,
+               COUNT(a.id)::int AS total_assignments,
+               COALESCE(AVG(a.load_score), 0)::numeric(4,2) AS avg_load
+        FROM schedule_plans sp
+        LEFT JOIN assignments a ON a.plan_id = sp.id
+        WHERE sp.plan_date >= $1::date - INTERVAL '6 days' AND sp.plan_date <= $1::date
+        GROUP BY sp.plan_date
+        ORDER BY sp.plan_date
+      `, [today]),
+
+      // User counts
+      pool.query(`SELECT role, COUNT(*)::int AS count FROM users WHERE is_active = true GROUP BY role`),
+
+      // Machines by type
+      pool.query(`
+        SELECT mt.name AS machine_type, COUNT(m.id)::int AS count
+        FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
+        WHERE m.is_active = true GROUP BY mt.name ORDER BY count DESC
+      `),
+    ]);
+
+    // Build maps
+    const machineMap = {};
+    lineMachines.rows.forEach(r => { machineMap[r.line] = r; });
+    const operatorMap = {};
+    lineOperators.rows.forEach(r => { operatorMap[r.line] = r.operator_count; });
+    const assignmentMap = {};
+    lineAssignments.rows.forEach(r => { assignmentMap[r.line] = r; });
+    const leaveMap = {};
+    todayLeaves.rows.forEach(r => { leaveMap[r.line] = r.leave_count; });
+
+    // Build line summary
+    const lines = lineDetails.rows.map(line => {
+      const mc = machineMap[line.line_code] || { machine_count: 0, total_capacity: 0 };
+      const opCount = operatorMap[line.line_code] || 0;
+      const asg = assignmentMap[line.line_code] || { assigned_operators: 0, total_load: 0, assignment_count: 0, overload_count: 0, transfer_count: 0 };
+      const leaves = leaveMap[line.line_code] || 0;
+      const availableOps = opCount - leaves;
+      const loadGap = mc.total_capacity - asg.assignment_count;
+
+      return {
+        lineCode: line.line_code,
+        lineName: line.line_name,
+        status: line.status,
+        capacity: line.capacity,
+        engineerName: line.engineer_name,
+        machines: mc.machine_count,
+        totalMachineCapacity: mc.total_capacity,
+        totalOperators: opCount,
+        availableOperators: availableOps > 0 ? availableOps : 0,
+        assignedOperators: asg.assigned_operators,
+        totalLoad: parseFloat(asg.total_load),
+        assignmentCount: asg.assignment_count,
+        overloadCount: asg.overload_count,
+        transferCount: asg.transfer_count,
+        leavesToday: leaves,
+        loadGap: loadGap,
+      };
+    });
+
+    // User summary
+    const userSummary = {};
+    userCounts.rows.forEach(r => { userSummary[r.role] = r.count; });
+
+    // Plan status for today
+    const planStatus = planStatusData.rows;
+
+    res.json({
+      lines,
+      planStatus,
+      weeklyTrend: weeklyTrend.rows,
+      weekLeaves: weekLeaves.rows,
+      machinesByType: machinesByType.rows,
+      users: userSummary,
+      totals: {
+        totalLines: lines.length,
+        totalMachines: lines.reduce((s, l) => s + l.machines, 0),
+        totalOperators: lines.reduce((s, l) => s + l.totalOperators, 0),
+        totalAssigned: lines.reduce((s, l) => s + l.assignedOperators, 0),
+        totalLeaves: lines.reduce((s, l) => s + l.leavesToday, 0),
+        totalLoadGap: lines.reduce((s, l) => s + l.loadGap, 0),
+      },
+    });
+  } catch (err) {
+    console.error('Admin dashboard error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+module.exports = { getOrCreatePlan, assignOperator, removeAssignment, submitPlan, reviewPlan, engineerApprove, cancelApproval, getPlans, getDashboardStats, getOperatorDashboard, getAdminDashboard };

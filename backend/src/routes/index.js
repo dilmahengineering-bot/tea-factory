@@ -18,6 +18,7 @@ router.put('/auth/change-password', auth, authCtrl.changePassword);
 // Dashboard
 router.get('/dashboard/stats', auth, schedCtrl.getDashboardStats);
 router.get('/dashboard/operator', auth, schedCtrl.getOperatorDashboard);
+router.get('/dashboard/admin', auth, requireAdmin, schedCtrl.getAdminDashboard);
 
 // Production lines (admin only)
 router.get('/production-lines', auth, requireEngineer, linesCtrl.getProductionLines);
