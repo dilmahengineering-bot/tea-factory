@@ -1,0 +1,189 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.formActions {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.machineFormGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.sectionTitle {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 1rem;
+}
+
+.typeGrid { display: flex; flex-direction: column; gap: 10px; }
+
+.typeCard {
+  background: #fafbfc;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+
+.customTypeCard {
+  border-color: #e9d5ff;
+  background: #faf5ff;
+}
+
+.typeCardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.typeName {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.typeBadge {
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.typeBadgeSys    { background: #dbeafe;  color: #1e40af; }
+.typeBadgeCustom { background: #f3e8ff; color: #6b21a8; }
+
+.typeDesc {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.typeMeta {
+  display: flex;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.lineSection { margin-bottom: 1.25rem; }
+
+.lineSectionTitle {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lineMachineCount {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.6875rem;
+  color: #6b7280;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.machineRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #fafbfc;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius);
+  margin-bottom: 5px;
+  font-size: 0.8125rem;
+}
+
+.machineIdBadge {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.machineRowInfo { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.machineRowName { font-weight: 500; }
+.machineRowType { font-size: 0.6875rem; color: #6b7280; }
+
+.attnBadge {
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.maxOps {
+  font-size: 0.6875rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 1rem;
+}
+
+.modal {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+}
+
+@media (max-width: 900px) {
+  .twoCol { grid-template-columns: 1fr; }
+  .formRow { grid-template-columns: 1fr; }
+}

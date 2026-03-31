@@ -1,0 +1,167 @@
+.leaveContainer {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+}
+
+.header {
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #ffc107;
+  padding-bottom: 0.75rem;
+}
+
+.header h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.header p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.onLeaveSection {
+  background: white;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.sectionTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #ff9800;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #ffe0b2;
+}
+
+.leaveItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: #fffbf0;
+  border: 1px solid #ffe0b2;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.leaveItem:last-child {
+  margin-bottom: 0;
+}
+
+.opInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.type {
+  font-size: 0.75rem;
+  background: #fff3cd;
+  color: #856404;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  display: inline-block;
+  width: fit-content;
+  text-transform: capitalize;
+}
+
+.reason {
+  font-size: 0.8rem;
+  color: #666;
+  font-style: italic;
+  margin: 0 1rem;
+  flex: 1;
+  max-width: 150px;
+}
+
+.removeBtn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.removeBtn:hover {
+  background: #c82333;
+  transform: scale(1.05);
+}
+
+.leaveForm {
+  background: white;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.formGroup {
+  margin-bottom: 1rem;
+}
+
+.formGroup label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.formGroup input,
+.formGroup select {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.formGroup input:focus,
+.formGroup select:focus {
+  outline: none;
+  border-color: #ffc107;
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.1);
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.actions button {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.empty {
+  text-align: center;
+  color: #999;
+  padding: 1rem;
+  font-size: 0.9rem;
+}

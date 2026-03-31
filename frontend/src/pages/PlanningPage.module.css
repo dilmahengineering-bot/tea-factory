@@ -1,0 +1,113 @@
+.header { margin-bottom: 1.5rem; }
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.controlGroup { display: flex; align-items: center; gap: 8px; }
+.controlLabel { font-size: 0.8125rem; color: #6b7280; white-space: nowrap; }
+
+.shiftToggle {
+  display: flex;
+  border: 1px solid #d1d5db;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.shiftBtn {
+  padding: 7px 18px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
+  font-family: var(--font-sans);
+  transition: all 0.15s;
+}
+.shiftBtn:hover { color: #111827; background: #f3f4f6; }
+.shift_day   { background: #dbeafe !important; color: #1e40af !important; }
+.shift_night { background: #f3e8ff !important; color: #6b21a8 !important; }
+
+.loadWrap { display: flex; justify-content: center; padding: 5rem; }
+
+.board {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.panel {
+  background: #fafbfc;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  position: sticky;
+  top: 1rem;
+}
+
+.panelTitle {
+  padding: 12px 14px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panelCount {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.operatorList { padding: 8px; max-height: calc(100vh - 280px); overflow-y: auto; }
+
+.teamSection { margin-bottom: 4px; }
+
+.teamSectionLabel {
+  font-size: 0.6875rem;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 6px 6px 3px;
+}
+
+.empty { font-size: 0.875rem; color: #9ca3af; padding: 1rem; text-align: center; }
+
+.machinesArea { min-width: 0; }
+
+.lockedBanner {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  color: #92400e;
+  margin-bottom: 1rem;
+  text-transform: capitalize;
+}
+
+.machinesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .board { grid-template-columns: 1fr; }
+  .panel { position: static; }
+  .operatorList { max-height: 280px; }
+}

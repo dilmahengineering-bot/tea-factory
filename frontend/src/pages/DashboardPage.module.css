@@ -1,0 +1,134 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.userWelcome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  flex-wrap: wrap;
+}
+
+.lineTag {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  font-family: var(--font-mono);
+}
+
+.loadWrap {
+  display: flex;
+  justify-content: center;
+  padding: 4rem;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.section { margin-bottom: 2rem; }
+
+.sectionTitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 1rem;
+}
+
+.accessGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.accessCard {
+  background: #fafbfc;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-lg);
+  padding: 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.accessGranted { border-color: #bfdbfe; }
+.accessDenied  { opacity: 0.45; }
+
+.accessStatus {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.accessGranted .accessStatus { color: #059669; }
+.accessDenied  .accessStatus { color: #dc2626; }
+
+.accessLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  flex: 1;
+}
+
+.accessBtn { align-self: flex-start; }
+
+.quickGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.quickCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fafbfc;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-lg);
+  padding: 1.125rem;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.15s;
+}
+
+.quickCard:hover {
+  border-color: var(--accent);
+  background: #dbeafe;
+  color: inherit;
+}
+
+.quickIcon {
+  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #dbeafe;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.quickTitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 3px;
+}
+
+.quickSub {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
