@@ -287,7 +287,7 @@ const getOperatorDashboard = async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const operatorId = req.user.id;
 
-    const [todayAssignments, capabilities, recentHistory, leaveStatus] = await Promise.all([
+    const [todayAssignments, upcomingAssignments, capabilities, recentHistory, leaveStatus] = await Promise.all([
       // Today's assignments with machine & plan details
       pool.query(`
         SELECT a.id, a.load_score, a.is_overload, a.is_transfer, a.transfer_from_line,
@@ -300,6 +300,20 @@ const getOperatorDashboard = async (req, res) => {
         JOIN schedule_plans sp ON sp.id = a.plan_id
         WHERE a.operator_id = $1 AND sp.plan_date = $2
         ORDER BY sp.shift, m.line, m.name
+      `, [operatorId, today]),
+
+      // Upcoming assignments (next 7 days)
+      pool.query(`
+        SELECT a.id, a.load_score, a.is_overload, a.is_transfer,
+               m.id AS machine_id, m.name AS machine_name, m.line, m.attention_level,
+               mt.name AS machine_type,
+               sp.shift, sp.status AS plan_status, sp.plan_date
+        FROM assignments a
+        JOIN machines m ON m.id = a.machine_id
+        JOIN machine_types mt ON mt.id = m.machine_type_id
+        JOIN schedule_plans sp ON sp.id = a.plan_id
+        WHERE a.operator_id = $1 AND sp.plan_date > $2 AND sp.plan_date <= $2::date + INTERVAL '7 days'
+        ORDER BY sp.plan_date, sp.shift, m.line, m.name
       `, [operatorId, today]),
 
       // Operator capabilities
@@ -340,6 +354,7 @@ const getOperatorDashboard = async (req, res) => {
         totalLoad: Math.round(totalLoad * 100) / 100,
         machineCount: todayAssignments.rows.length,
       },
+      upcoming: upcomingAssignments.rows,
       capabilities: capabilities.rows,
       recentHistory: recentHistory.rows,
       leaves: leaveStatus.rows,

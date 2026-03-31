@@ -31,7 +31,7 @@ function OperatorDashboard({ user, today }) {
 
   if (loading) return <div className={styles.loadWrap}><div className="spinner spinner-lg" /></div>;
 
-  const { today: todayData, capabilities, recentHistory, leaves } = data || {};
+  const { today: todayData, upcoming, capabilities, recentHistory, leaves } = data || {};
 
   return (
     <>
@@ -113,6 +113,57 @@ function OperatorDashboard({ user, today }) {
           </div>
         ) : (
           <div className={styles.emptyCard}>No machines assigned for today yet.</div>
+        )}
+      </div>
+
+      {/* Upcoming plans */}
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Upcoming plans (next 7 days)</h3>
+        {upcoming?.length > 0 ? (
+          <div className={styles.opTable}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Shift</th>
+                  <th>Machine</th>
+                  <th>Type</th>
+                  <th>Line</th>
+                  <th>Load</th>
+                  <th>Attention</th>
+                  <th>Plan status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcoming.map(a => (
+                  <tr key={a.id}>
+                    <td>{new Date(a.plan_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+                    <td><span className={`badge badge-${a.shift === 'day' ? 'info' : 'secondary'}`}>{a.shift}</span></td>
+                    <td><strong>{a.machine_name}</strong></td>
+                    <td>{a.machine_type}</td>
+                    <td><span className={styles.lineTag}>{a.line}</span></td>
+                    <td>
+                      <span className={a.is_overload ? styles.loadHigh : styles.loadNormal}>
+                        {a.load_score}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge badge-${a.attention_level === 'HIGH' ? 'danger' : a.attention_level === 'MED' ? 'warning' : 'success'}`}>
+                        {a.attention_level}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge badge-${a.plan_status === 'approved' || a.plan_status === 'engineer_approved' ? 'success' : a.plan_status === 'submitted' ? 'info' : 'secondary'}`}>
+                        {a.plan_status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className={styles.emptyCard}>No upcoming plans for the next 7 days.</div>
         )}
       </div>
 
