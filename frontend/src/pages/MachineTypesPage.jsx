@@ -286,6 +286,12 @@ export default function MachineTypesPage() {
     return acc;
   }, {});
 
+  const lineSections = (() => {
+    const knownLineCodes = productionLines.map(pl => pl.line_code);
+    const extraMachineLines = Object.keys(machinesByLine).filter(code => !knownLineCodes.includes(code));
+    return [...knownLineCodes, ...extraMachineLines];
+  })();
+
   const attnColors = {
     HIGH: { bg: 'rgba(239,68,68,0.12)', color: '#f87171' },
     MED:  { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
@@ -655,13 +661,14 @@ export default function MachineTypesPage() {
           {/* Machines by line */}
           <div>
             <h3 className={styles.sectionTitle}>Floor machines ({machines.length})</h3>
-            {['L1', 'L2', 'L3'].map(lineKey => {
+            {lineSections.map(lineKey => {
               const lineMachines = machinesByLine[lineKey] || [];
               if (!lineMachines.length) return null;
+              const lineInfo = productionLines.find(pl => pl.line_code === lineKey);
               return (
                 <div key={lineKey} className={styles.lineSection}>
                   <div className={styles.lineSectionTitle}>
-                    Line {lineKey.slice(1)} <span className={styles.lineMachineCount}>{lineMachines.length}</span>
+                    {lineInfo?.line_name || lineKey} <span className={styles.lineMachineCount}>{lineMachines.length}</span>
                   </div>
                   {lineMachines.map(m => {
                     const ac = attnColors[m.attention_level] || attnColors.MED;
