@@ -11,6 +11,32 @@
 .controlGroup { display: flex; align-items: center; gap: 8px; }
 .controlLabel { font-size: 0.8125rem; color: #6b7280; white-space: nowrap; }
 
+.rangeGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.rangeGroup :global(input[type='date']) {
+  width: auto;
+}
+
+.rangeTo {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.overwriteToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
 .shiftToggle {
   display: flex;
   border: 1px solid #d1d5db;
@@ -110,4 +136,5 @@
   .board { grid-template-columns: 1fr; }
   .panel { position: static; }
   .operatorList { max-height: 280px; }
+  .rangeGroup { margin-left: 0; }
 }

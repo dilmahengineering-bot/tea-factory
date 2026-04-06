@@ -57,7 +57,9 @@ export const capabilitiesApi = {
 // Scheduling
 export const schedulingApi = {
   getPlans: (params) => api.get('/plans', { params }),
+  getAssignedUsersOtherShift: (date, shift) => api.get('/plans/assigned-users', { params: { date, shift } }),
   getPlan: (date, shift, line) => api.get(`/plans/${date}/${shift}/${line}`),
+  populateRange: (planId, data) => api.post(`/plans/${planId}/populate-range`, data),
   assign: (planId, data) => api.post(`/plans/${planId}/assignments`, data),
   removeAssignment: (planId, assignmentId) => api.delete(`/plans/${planId}/assignments/${assignmentId}`),
   submit: (planId) => api.post(`/plans/${planId}/submit`),

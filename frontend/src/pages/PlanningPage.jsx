@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { schedulingApi, machinesApi, usersApi, productionLinesApi, poolApi } from '../api/services';
 import useAuthStore from '../store/authStore';
 import OperatorCard from '../components/planning/OperatorCard';
@@ -21,6 +21,9 @@ export default function PlanningPage() {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [shift, setShift] = useState('day');
   const [line, setLine] = useState(isTech ? user.dedicatedLine : 'L1');
+  const [rangeStart, setRangeStart] = useState(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
+  const [rangeEnd, setRangeEnd] = useState(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
+  const [rangeOverwrite, setRangeOverwrite] = useState(false);
 
   const [plan, setPlan] = useState(null);
   const [assignments, setAssignments] = useState([]);
@@ -30,6 +33,7 @@ export default function PlanningPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [poolReloadTrigger, setPoolReloadTrigger] = useState(0); // Trigger pool reload when allocation succeeds
+  const [otherShiftAssignedIds, setOtherShiftAssignedIds] = useState(new Set());
 
   const [activeOp, setActiveOp] = useState(null);
   const [overloadData, setOverloadData] = useState(null); // {opId, machineId, curLoad, newLoad, machineName}
@@ -41,14 +45,16 @@ export default function PlanningPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [planRes, machinesRes, usersRes] = await Promise.all([
+      const [planRes, machinesRes, usersRes, otherShiftRes] = await Promise.all([
         schedulingApi.getPlan(date, shift, line),
         machinesApi.getAll({ line }),
         usersApi.getAll({ active: 'true' }), // Get all operators/technicians, not filtered by line
+        schedulingApi.getAssignedUsersOtherShift(date, shift),
       ]);
       setPlan(planRes.data.plan);
       setAssignments(planRes.data.assignments);
       setMachines(machinesRes.data);
+      setOtherShiftAssignedIds(new Set(otherShiftRes.data.assignedUserIds || []));
       
       // Team = 
       // 1. Local operators/technicians on this line
@@ -116,8 +122,7 @@ export default function PlanningPage() {
     assignments.filter(a => a.machine_id === machineId);
 
   const isAssignedOtherShift = (opId) => {
-    // Checked server-side; we track locally from plan data
-    return false; // Server enforces this hard block
+    return otherShiftAssignedIds.has(opId);
   };
 
   const handleDragStart = (event) => {
@@ -132,6 +137,12 @@ export default function PlanningPage() {
 
     try {
       console.log('Adding common pool operator:', operator);
+
+      if (isAssignedOtherShift(operator.id)) {
+        toast.error(`${operator.name} is already assigned in the other shift`);
+        return;
+      }
+
       // Add operator to team members temporarily so they can be dragged
       // The actual assignment happens when they're dragged onto a machine
       const enrichedOp = {
@@ -174,6 +185,11 @@ export default function PlanningPage() {
     const operator = teamMembers.find(u => u.id === opId);
     if (!machine || !operator) {
       console.warn('Machine or operator not found', { machineId, opId, machine, operator });
+      return;
+    }
+
+    if (isAssignedOtherShift(opId)) {
+      toast.error(`${operator.name} is already assigned in the other shift`);
       return;
     }
 
@@ -291,12 +307,45 @@ export default function PlanningPage() {
     }
   };
 
+  const handlePopulateRange = async () => {
+    if (!plan) return;
+
+    if (!rangeStart || !rangeEnd) {
+      toast.error('Please select start and end dates');
+      return;
+    }
+
+    if (rangeStart > rangeEnd) {
+      toast.error('Start date cannot be after end date');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await schedulingApi.populateRange(plan.id, {
+        startDate: rangeStart,
+        endDate: rangeEnd,
+        overwrite: rangeOverwrite,
+      });
+
+      const s = res.data?.summary;
+      toast.success(
+        `Populated ${s?.plansUpdated || 0} plans, copied ${s?.assignmentsCopied || 0} assignments`
+      );
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to populate date range');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const canEdit = plan && ['draft'].includes(plan.status) && !loading;
   const isPlanLocked = plan && ['approved','rejected'].includes(plan.status);
+  const visibleTeamMembers = teamMembers.filter(u => !isAssignedOtherShift(u.id));
 
   const coveredMachines = machines.filter(m => getMachineAssignments(m.id).length > 0).length;
   const highGaps = machines.filter(m => m.attention_level === 'HIGH' && getMachineAssignments(m.id).length === 0).length;
-  const overloadedOps = teamMembers.filter(u => {
+  const overloadedOps = visibleTeamMembers.filter(u => {
     const load = getOpAssignments(u.id).reduce((s, a) => s + ({HIGH:1.0,MED:0.4,LOW:0.2}[a.attention_level]||0), 0);
     return load > 1.0001;
   }).length;
@@ -340,6 +389,40 @@ export default function PlanningPage() {
             </select>
           </div>
         )}
+
+        {plan && (
+          <div className={styles.rangeGroup}>
+            <span className={styles.controlLabel}>Copy Plan</span>
+            <input
+              type="date"
+              className="form-input"
+              value={rangeStart}
+              onChange={e => setRangeStart(e.target.value)}
+            />
+            <span className={styles.rangeTo}>to</span>
+            <input
+              type="date"
+              className="form-input"
+              value={rangeEnd}
+              onChange={e => setRangeEnd(e.target.value)}
+            />
+            <label className={styles.overwriteToggle}>
+              <input
+                type="checkbox"
+                checked={rangeOverwrite}
+                onChange={e => setRangeOverwrite(e.target.checked)}
+              />
+              Overwrite drafts
+            </label>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handlePopulateRange}
+              disabled={actionLoading}
+            >
+              Populate Date Range
+            </button>
+          </div>
+        )}
       </div>
 
       {plan && (
@@ -365,21 +448,21 @@ export default function PlanningPage() {
             <div className={styles.panel}>
               <div className={styles.panelTitle}>
                 {productionLines.find(pl => pl.line_code === line)?.line_name || line} team
-                <span className={styles.panelCount}>{teamMembers.length}</span>
+                <span className={styles.panelCount}>{visibleTeamMembers.length}</span>
               </div>
               <div className={styles.operatorList}>
-                {teamMembers.length === 0 && (
+                {visibleTeamMembers.length === 0 && (
                   <p className={styles.empty}>No team members on this line</p>
                 )}
-                {teamMembers.filter(u => u.role === 'technician').length > 0 && (
+                {visibleTeamMembers.filter(u => u.role === 'technician').length > 0 && (
                   <div className={styles.teamSection}>
                     <div className={styles.teamSectionLabel}>Technicians</div>
-                    {teamMembers.filter(u => u.role === 'technician').map(op => (
+                    {visibleTeamMembers.filter(u => u.role === 'technician').map(op => (
                       <OperatorCard
                         key={op.id}
                         operator={op}
                         assignments={getOpAssignments(op.id)}
-                        canDrag={canEdit && !isPlanLocked}
+                        canDrag={canEdit && !isPlanLocked && !isAssignedOtherShift(op.id)}
                         machineTypes={[...new Set(machines.map(m => m.type_name))]}
                       />
                     ))}
@@ -387,12 +470,12 @@ export default function PlanningPage() {
                 )}
                 <div className={styles.teamSection}>
                   <div className={styles.teamSectionLabel}>Operators</div>
-                  {teamMembers.filter(u => u.role === 'operator').map(op => (
+                  {visibleTeamMembers.filter(u => u.role === 'operator').map(op => (
                     <OperatorCard
                       key={op.id}
                       operator={op}
                       assignments={getOpAssignments(op.id)}
-                      canDrag={canEdit && !isPlanLocked}
+                      canDrag={canEdit && !isPlanLocked && !isAssignedOtherShift(op.id)}
                       machineTypes={[...new Set(machines.map(m => m.type_name))]}
                     />
                   ))}
@@ -405,7 +488,7 @@ export default function PlanningPage() {
                   currentLine={line}
                   planDate={date}
                   shift={shift}
-                  teamMembers={teamMembers}
+                  teamMembers={visibleTeamMembers}
                 />
               )}
 
@@ -416,7 +499,7 @@ export default function PlanningPage() {
                   planDate={date}
                   shift={shift}
                   planId={plan.id}
-                  teamMembers={teamMembers}
+                  teamMembers={visibleTeamMembers}
                 />
               )}
 
@@ -451,7 +534,7 @@ export default function PlanningPage() {
                     assignments={getMachineAssignments(machine.id)}
                     onRemove={handleRemoveAssignment}
                     canEdit={canEdit && !isPlanLocked}
-                    allOperators={teamMembers}
+                    allOperators={visibleTeamMembers}
                   />
                 ))}
               </div>

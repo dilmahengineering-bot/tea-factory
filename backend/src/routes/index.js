@@ -53,7 +53,9 @@ router.delete('/capabilities/:operatorId/:machineTypeId', auth, requireEngineer,
 
 // Scheduling
 router.get('/plans', auth, requireTechnician, schedCtrl.getPlans);
+router.get('/plans/assigned-users', auth, requireTechnician, schedCtrl.getAssignedUsersOtherShift);
 router.get('/plans/:date/:shift/:line', auth, requireTechnician, schedCtrl.getOrCreatePlan);
+router.post('/plans/:planId/populate-range', auth, requireTechnician, schedCtrl.populatePlanRange);
 router.post('/plans/:planId/assignments', auth, requireTechnician, schedCtrl.assignOperator);
 router.delete('/plans/:planId/assignments/:assignmentId', auth, requireTechnician, schedCtrl.removeAssignment);
 router.post('/plans/:planId/submit', auth, requireTechnician, schedCtrl.submitPlan);

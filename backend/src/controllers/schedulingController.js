@@ -258,6 +258,214 @@ const getPlans = async (req, res) => {
   }
 };
 
+const getAssignedUsersOtherShift = async (req, res) => {
+  try {
+    const { date, shift } = req.query;
+    if (!date || !shift) {
+      return res.status(400).json({ error: 'date and shift are required' });
+    }
+
+    if (!['day', 'night'].includes(shift)) {
+      return res.status(400).json({ error: 'shift must be day or night' });
+    }
+
+    const otherShift = shift === 'day' ? 'night' : 'day';
+    const assigned = await pool.query(
+      `SELECT DISTINCT a.operator_id
+       FROM assignments a
+       JOIN schedule_plans sp ON sp.id = a.plan_id
+       JOIN users u ON u.id = a.operator_id
+       WHERE sp.plan_date = $1
+         AND sp.shift = $2
+         AND u.role IN ('operator', 'technician')`,
+      [date, otherShift]
+    );
+
+    res.json({
+      date,
+      shift,
+      otherShift,
+      assignedUserIds: assigned.rows.map(r => r.operator_id),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const populatePlanRange = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { planId } = req.params;
+    const { startDate, endDate, overwrite } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+
+    const start = new Date(`${startDate}T00:00:00.000Z`);
+    const end = new Date(`${endDate}T00:00:00.000Z`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    if (start > end) {
+      return res.status(400).json({ error: 'startDate cannot be after endDate' });
+    }
+
+    const daySpan = Math.floor((end - start) / (24 * 60 * 60 * 1000)) + 1;
+    if (daySpan > 31) {
+      return res.status(400).json({ error: 'Date range cannot exceed 31 days' });
+    }
+
+    const sourcePlanQ = await client.query('SELECT * FROM schedule_plans WHERE id = $1', [planId]);
+    if (!sourcePlanQ.rows.length) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+
+    const sourcePlan = sourcePlanQ.rows[0];
+
+    if (req.user.role === 'technician' && req.user.dedicated_line !== sourcePlan.line) {
+      return res.status(403).json({ error: 'You can only plan your own line' });
+    }
+
+    const sourceAssignmentsQ = await client.query(
+      `SELECT machine_id, operator_id, load_score, is_overload, is_transfer, transfer_from_line
+       FROM assignments
+       WHERE plan_id = $1
+       ORDER BY machine_id, operator_id`,
+      [planId]
+    );
+
+    if (!sourceAssignmentsQ.rows.length) {
+      return res.status(400).json({ error: 'Source plan has no assignments to copy' });
+    }
+
+    const sourceAssignments = sourceAssignmentsQ.rows;
+    const otherShift = sourcePlan.shift === 'day' ? 'night' : 'day';
+    const toDateKey = (d) => d.toISOString().split('T')[0];
+
+    const summary = {
+      sourceDate: sourcePlan.plan_date,
+      shift: sourcePlan.shift,
+      line: sourcePlan.line,
+      totalDatesRequested: daySpan,
+      datesProcessed: 0,
+      plansCreated: 0,
+      plansUpdated: 0,
+      assignmentsCopied: 0,
+      skippedLockedPlans: 0,
+      skippedNonEmptyPlans: 0,
+      skippedCrossShiftAssignments: 0,
+      dateResults: [],
+    };
+
+    await client.query('BEGIN');
+
+    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      const targetDate = toDateKey(d);
+
+      if (targetDate === toDateKey(new Date(sourcePlan.plan_date))) {
+        continue;
+      }
+
+      summary.datesProcessed += 1;
+
+      let targetPlan = await client.query(
+        `SELECT * FROM schedule_plans WHERE plan_date = $1 AND shift = $2 AND line = $3`,
+        [targetDate, sourcePlan.shift, sourcePlan.line]
+      );
+
+      if (!targetPlan.rows.length) {
+        targetPlan = await client.query(
+          `INSERT INTO schedule_plans (plan_date, shift, line, created_by, status)
+           VALUES ($1, $2, $3, $4, 'draft')
+           RETURNING *`,
+          [targetDate, sourcePlan.shift, sourcePlan.line, req.user.id]
+        );
+        summary.plansCreated += 1;
+      }
+
+      const tp = targetPlan.rows[0];
+
+      if (tp.status !== 'draft') {
+        summary.skippedLockedPlans += 1;
+        summary.dateResults.push({ date: targetDate, status: 'skipped_locked', copied: 0 });
+        continue;
+      }
+
+      const existingAssignments = await client.query(
+        'SELECT id FROM assignments WHERE plan_id = $1',
+        [tp.id]
+      );
+
+      if (existingAssignments.rows.length > 0 && !overwrite) {
+        summary.skippedNonEmptyPlans += 1;
+        summary.dateResults.push({ date: targetDate, status: 'skipped_non_empty', copied: 0 });
+        continue;
+      }
+
+      if (existingAssignments.rows.length > 0 && overwrite) {
+        await client.query('DELETE FROM assignments WHERE plan_id = $1', [tp.id]);
+      }
+
+      let copiedForDate = 0;
+
+      for (const asg of sourceAssignments) {
+        const crossShiftExists = await client.query(
+          `SELECT a.id
+           FROM assignments a
+           JOIN schedule_plans sp ON sp.id = a.plan_id
+           WHERE a.operator_id = $1 AND sp.plan_date = $2 AND sp.shift = $3
+           LIMIT 1`,
+          [asg.operator_id, targetDate, otherShift]
+        );
+
+        if (crossShiftExists.rows.length) {
+          summary.skippedCrossShiftAssignments += 1;
+          continue;
+        }
+
+        const ins = await client.query(
+          `INSERT INTO assignments (plan_id, machine_id, operator_id, load_score, is_overload, is_transfer, transfer_from_line)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (plan_id, machine_id, operator_id) DO NOTHING
+           RETURNING id`,
+          [tp.id, asg.machine_id, asg.operator_id, asg.load_score, asg.is_overload, asg.is_transfer, asg.transfer_from_line]
+        );
+
+        if (ins.rows.length) {
+          copiedForDate += 1;
+        }
+      }
+
+      summary.assignmentsCopied += copiedForDate;
+      summary.plansUpdated += 1;
+      summary.dateResults.push({ date: targetDate, status: 'populated', copied: copiedForDate });
+    }
+
+    await client.query('COMMIT');
+
+    await auditLog(req.user.id, 'PLAN_RANGE_POPULATED', 'plan', planId, null, {
+      startDate,
+      endDate,
+      overwrite: !!overwrite,
+      summary,
+    }, req.ip);
+
+    res.json({
+      message: 'Plan range population completed',
+      summary,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
 const getDashboardStats = async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -601,4 +809,4 @@ const getAdminDashboard = async (req, res) => {
   }
 };
 
-module.exports = { getOrCreatePlan, assignOperator, removeAssignment, submitPlan, reviewPlan, engineerApprove, cancelApproval, getPlans, getDashboardStats, getOperatorDashboard, getAdminDashboard };
+module.exports = { getOrCreatePlan, assignOperator, removeAssignment, submitPlan, reviewPlan, engineerApprove, cancelApproval, getPlans, getAssignedUsersOtherShift, populatePlanRange, getDashboardStats, getOperatorDashboard, getAdminDashboard };
