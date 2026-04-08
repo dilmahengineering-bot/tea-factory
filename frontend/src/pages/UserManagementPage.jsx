@@ -12,7 +12,7 @@ function initials(name) {
 }
 
 function getEmptyForm(lines) {
-  return { name: '', empNo: '', email: '', password: '', role: 'operator', dedicatedLine: lines[0]?.name || '', isActive: true };
+  return { name: '', empNo: '', email: '', password: '', role: 'operator', dedicatedLine: lines[0]?.line_name || '', isActive: true };
 }
 
 export default function UserManagementPage() {
@@ -37,11 +37,14 @@ export default function UserManagementPage() {
     const loadLines = async () => {
       try {
         const res = await productionLinesApi.getAll();
-        setLines(res.data || []);
-        if (form.dedicatedLine === '' && res.data?.length > 0) {
-          setForm(f => ({ ...f, dedicatedLine: res.data[0].name }));
+        const loadedLines = res.data || [];
+        setLines(loadedLines);
+        // Update form with first line from loaded lines
+        if (loadedLines.length > 0 && (!form.dedicatedLine || form.dedicatedLine === '')) {
+          setForm(f => ({ ...f, dedicatedLine: loadedLines[0].line_name }));
         }
-      } catch {
+      } catch (error) {
+        console.error('Failed to load production lines:', error);
         toast.error('Failed to load production lines');
       }
     };
@@ -78,7 +81,7 @@ export default function UserManagementPage() {
       email: user.email || '',
       password: '',
       role: user.role,
-      dedicatedLine: user.dedicated_line || 'L1',
+      dedicatedLine: user.dedicated_line || (lines.length > 0 ? lines[0].line_name : ''),
       isActive: user.is_active,
     });
     setErrors({});
@@ -187,7 +190,7 @@ export default function UserManagementPage() {
         </select>
         <select className="form-select" style={{ width: 'auto' }} value={filterLine} onChange={e => setFilterLine(e.target.value)}>
           <option value="all">All lines</option>
-          {lines.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
+          {lines.map(l => <option key={l.id} value={l.line_name}>{l.line_name}</option>)}
         </select>
         <span className="text-muted" style={{ fontSize: '0.875rem' }}>{users.length} user{users.length !== 1 ? 's' : ''}</span>
       </div>
@@ -293,7 +296,7 @@ export default function UserManagementPage() {
                   <div className="form-group">
                     <label className="form-label">Dedicated line *</label>
                     <select className="form-select" value={form.dedicatedLine} onChange={e => setForm(f => ({ ...f, dedicatedLine: e.target.value }))}>
-                      {lines.length > 0 ? lines.map(l => <option key={l.id} value={l.name}>{l.name}</option>) : <option>No lines available</option>}
+                      {lines.length > 0 ? lines.map(l => <option key={l.id} value={l.line_name}>{l.line_name}</option>) : <option>No lines available</option>}
                     </select>
                   </div>
                 )}
