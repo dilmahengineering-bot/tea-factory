@@ -47,6 +47,9 @@ const createProductionLine = async (req, res) => {
     if (!line_code || !line_name) {
       return res.status(400).json({ error: 'line_code and line_name are required' });
     }
+    if (line_code.length > 20) return res.status(400).json({ error: 'Line code must be 20 characters or less' });
+    if (line_name.length > 100) return res.status(400).json({ error: 'Line name must be 100 characters or less' });
+    if (location && location.length > 150) return res.status(400).json({ error: 'Location must be 150 characters or less' });
 
     const exists = await pool.query('SELECT id FROM production_lines WHERE line_code = $1', [line_code]);
     if (exists.rows.length) return res.status(409).json({ error: 'Production line already exists' });
@@ -71,11 +74,12 @@ const createProductionLine = async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Error creating production line:', err.message);
+    console.error('Full error:', err);
     if (err.code === '23505') return res.status(409).json({ error: 'Line code already exists' });
     if (err.message.includes('does not exist')) {
-      return res.status(500).json({ error: 'Database not properly initialized. Please restart the server.' });
+      return res.status(500).json({ error: `Database table missing: ${err.message}` });
     }
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: `Server error: ${err.message}` });
   }
 };
 

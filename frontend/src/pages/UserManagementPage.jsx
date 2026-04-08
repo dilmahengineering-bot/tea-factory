@@ -1,28 +1,30 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { usersApi } from '../api/services';
+import { usersApi, productionLinesApi } from '../api/services';
 import useAuthStore from '../store/authStore';
 import styles from './UserManagementPage.module.css';
 
 const ROLES = ['admin', 'engineer', 'technician', 'operator'];
-const LINES = ['L1', 'L2', 'L3'];
 const NEEDS_LINE = ['technician', 'operator'];
 
 function initials(name) {
   return name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '??';
 }
 
-const EMPTY_FORM = { name: '', empNo: '', email: '', password: '', role: 'operator', dedicatedLine: 'L1', isActive: true };
+function getEmptyForm(lines) {
+  return { name: '', empNo: '', email: '', password: '', role: 'operator', dedicatedLine: lines[0]?.name || '', isActive: true };
+}
 
 export default function UserManagementPage() {
   const { user: currentUser } = useAuthStore();
   const [users, setUsers] = useState([]);
+  const [lines, setLines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterRole, setFilterRole] = useState('all');
   const [filterLine, setFilterLine] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(getEmptyForm([]));
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [resetPwdUser, setResetPwdUser] = useState(null);
@@ -30,6 +32,21 @@ export default function UserManagementPage() {
   const [pwdError, setPwdError] = useState('');
 
   useEffect(() => { loadUsers(); }, [filterRole, filterLine]);
+
+  useEffect(() => {
+    const loadLines = async () => {
+      try {
+        const res = await productionLinesApi.getAll();
+        setLines(res.data || []);
+        if (form.dedicatedLine === '' && res.data?.length > 0) {
+          setForm(f => ({ ...f, dedicatedLine: res.data[0].name }));
+        }
+      } catch {
+        toast.error('Failed to load production lines');
+      }
+    };
+    loadLines();
+  }, []);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -48,7 +65,7 @@ export default function UserManagementPage() {
 
   const openAdd = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm(getEmptyForm(lines));
     setErrors({});
     setShowForm(true);
   };
@@ -170,7 +187,7 @@ export default function UserManagementPage() {
         </select>
         <select className="form-select" style={{ width: 'auto' }} value={filterLine} onChange={e => setFilterLine(e.target.value)}>
           <option value="all">All lines</option>
-          {LINES.map(l => <option key={l} value={l}>{l}</option>)}
+          {lines.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
         </select>
         <span className="text-muted" style={{ fontSize: '0.875rem' }}>{users.length} user{users.length !== 1 ? 's' : ''}</span>
       </div>
@@ -276,7 +293,7 @@ export default function UserManagementPage() {
                   <div className="form-group">
                     <label className="form-label">Dedicated line *</label>
                     <select className="form-select" value={form.dedicatedLine} onChange={e => setForm(f => ({ ...f, dedicatedLine: e.target.value }))}>
-                      {LINES.map(l => <option key={l} value={l}>Line {l.slice(1)}</option>)}
+                      {lines.length > 0 ? lines.map(l => <option key={l.id} value={l.name}>{l.name}</option>) : <option>No lines available</option>}
                     </select>
                   </div>
                 )}

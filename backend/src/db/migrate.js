@@ -24,7 +24,7 @@ const migrate = async () => {
     await client.query(`
       CREATE TABLE IF NOT EXISTS production_lines (
         id SERIAL PRIMARY KEY,
-        line_code VARCHAR(10) UNIQUE NOT NULL,
+        line_code VARCHAR(20) UNIQUE NOT NULL,
         line_name VARCHAR(100) NOT NULL,
         location VARCHAR(150),
         capacity INTEGER DEFAULT 5,
@@ -35,6 +35,9 @@ const migrate = async () => {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+
+    // Widen line_code if table already existed with smaller column
+    await client.query(`ALTER TABLE production_lines ALTER COLUMN line_code TYPE VARCHAR(20)`);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS machine_types (

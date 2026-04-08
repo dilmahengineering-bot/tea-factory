@@ -8,7 +8,15 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',');
+    if (allowed.includes(origin) || origin.startsWith('http://10.') || origin.startsWith('http://192.168.')) {
+      return callback(null, true);
+    }
+    callback(null, true); // Allow all origins in development; restrict in production
+  },
   credentials: true,
 }));
 
@@ -33,7 +41,7 @@ app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
 // Global error handler
 app.use((err, _req, res, _next) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json({ error: `Server error: ${err.message}` });
 });
 
 // Run migration and start server
