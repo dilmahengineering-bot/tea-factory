@@ -28,16 +28,7 @@ const getProductionLines = async (req, res) => {
   } catch (err) {
     console.error('Error fetching production lines:', err.message);
     console.error('Full error:', err);
-    // If table doesn't exist, return default lines
-    if (err.message.includes('does not exist')) {
-      res.json([
-        { id: 1, line_code: 'L1', line_name: 'Line 1', capacity: 5, status: 'active', machine_count: 0 },
-        { id: 2, line_code: 'L2', line_name: 'Line 2', capacity: 5, status: 'active', machine_count: 0 },
-        { id: 3, line_code: 'L3', line_name: 'Line 3', capacity: 5, status: 'active', machine_count: 0 },
-      ]);
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
