@@ -65,6 +65,7 @@ export const schedulingApi = {
   submit: (planId) => api.post(`/plans/${planId}/submit`),
   engineerApprove: (planId, action) => api.post(`/plans/${planId}/engineer-approve`, { action }),
   cancelApproval: (planId) => api.post(`/plans/${planId}/cancel-approval`),
+  reopen: (planId) => api.post(`/plans/${planId}/reopen`),
   review: (planId, action, note) => api.post(`/plans/${planId}/review`, { action, note }),
 };
 

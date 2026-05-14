@@ -307,6 +307,20 @@ export default function PlanningPage() {
     }
   };
 
+  const handleReopen = async () => {
+    if (!plan) return;
+    setActionLoading(true);
+    try {
+      const res = await schedulingApi.reopen(plan.id);
+      setPlan(res.data);
+      toast.success('Plan reopened for editing');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to reopen plan');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handlePopulateRange = async () => {
     if (!plan) return;
 
@@ -339,8 +353,8 @@ export default function PlanningPage() {
     }
   };
 
-  const canEdit = plan && ['draft'].includes(plan.status) && !loading;
-  const isPlanLocked = plan && ['approved','rejected'].includes(plan.status);
+  const canEdit = plan && ['draft', 'rejected'].includes(plan.status) && !loading;
+  const isPlanLocked = plan && ['approved'].includes(plan.status);
   const visibleTeamMembers = teamMembers.filter(u => !isAssignedOtherShift(u.id));
 
   const coveredMachines = machines.filter(m => getMachineAssignments(m.id).length > 0).length;
@@ -434,6 +448,7 @@ export default function PlanningPage() {
           overloadedOps={overloadedOps}
           onSubmit={handleSubmit}
           onReview={handleReview}
+          onReopen={handleReopen}
           actionLoading={actionLoading}
           isEng={isEng}
         />

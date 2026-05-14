@@ -646,6 +646,37 @@ const cancelApproval = async (req, res) => {
   }
 };
 
+const reopenPlan = async (req, res) => {
+  try {
+    const { planId } = req.params;
+    const user = req.user;
+
+    const plan = await pool.query('SELECT * FROM schedule_plans WHERE id = $1', [planId]);
+    if (!plan.rows.length) return res.status(404).json({ error: 'Plan not found' });
+
+    if (plan.rows[0].status !== 'rejected') {
+      return res.status(400).json({ error: 'Only rejected plans can be reopened' });
+    }
+
+    // Only the technician who created the plan or admin/engineer can reopen
+    if (user.role === 'technician' && plan.rows[0].created_by !== user.id) {
+      return res.status(403).json({ error: 'You can only reopen your own plans' });
+    }
+
+    const result = await pool.query(
+      `UPDATE schedule_plans SET status = 'draft', engineer_approved_by = NULL, engineer_approved_at = NULL
+       WHERE id = $1 RETURNING *`,
+      [planId]
+    );
+
+    await auditLog(req.user.id, 'PLAN_REOPENED', 'plan', planId, null, null, req.ip);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 const getAdminDashboard = async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -809,4 +840,4 @@ const getAdminDashboard = async (req, res) => {
   }
 };
 
-module.exports = { getOrCreatePlan, assignOperator, removeAssignment, submitPlan, reviewPlan, engineerApprove, cancelApproval, getPlans, getAssignedUsersOtherShift, populatePlanRange, getDashboardStats, getOperatorDashboard, getAdminDashboard };
+module.exports = { getOrCreatePlan, assignOperator, removeAssignment, submitPlan, reviewPlan, engineerApprove, cancelApproval, getPlans, getAssignedUsersOtherShift, populatePlanRange, getDashboardStats, getOperatorDashboard, getAdminDashboard, reopenPlan };

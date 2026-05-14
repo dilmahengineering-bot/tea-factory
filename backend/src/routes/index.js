@@ -61,6 +61,7 @@ router.delete('/plans/:planId/assignments/:assignmentId', auth, requireTechnicia
 router.post('/plans/:planId/submit', auth, requireTechnician, schedCtrl.submitPlan);
 router.post('/plans/:planId/engineer-approve', auth, requireEngineer, schedCtrl.engineerApprove);
 router.post('/plans/:planId/cancel-approval', auth, requireAdmin, schedCtrl.cancelApproval);
+router.post('/plans/:planId/reopen', auth, requireTechnician, schedCtrl.reopenPlan);
 router.post('/plans/:planId/review', auth, requireEngineer, schedCtrl.reviewPlan);
 
 // Common Operator Pool (technician+)

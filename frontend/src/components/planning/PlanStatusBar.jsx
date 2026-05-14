@@ -10,7 +10,7 @@ const STATUS_CONFIG = {
 
 export default function PlanStatusBar({
   plan, coveredMachines, totalMachines, highGaps, overloadedOps,
-  onSubmit, onReview, actionLoading, isEng,
+  onSubmit, onReview, onReopen, actionLoading, isEng,
 }) {
   const [reviewNote, setReviewNote] = useState('');
   const [showReview, setShowReview] = useState(false);
@@ -82,6 +82,14 @@ export default function PlanStatusBar({
           <span className={styles.reviewNote} title={plan.review_note}>
             Note: {plan.review_note.length > 40 ? plan.review_note.slice(0, 40) + '…' : plan.review_note}
           </span>
+        )}
+
+        {plan.status === 'rejected' && onReopen && (
+          <button className="btn btn-sm" style={{background:'#fef3c7',borderColor:'#fcd34d',color:'#92400e'}}
+            onClick={onReopen} disabled={actionLoading}>
+            {actionLoading ? <span className="spinner" style={{width:14,height:14}} /> : null}
+            Reopen for editing
+          </button>
         )}
       </div>
 
