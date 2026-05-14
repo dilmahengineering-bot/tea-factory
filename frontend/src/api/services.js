@@ -9,9 +9,9 @@ export const authApi = {
 
 // Dashboard
 export const dashboardApi = {
-  getStats: () => api.get('/dashboard/stats'),
+  getStats: (params) => api.get('/dashboard/stats', { params }),
   getOperatorDashboard: () => api.get('/dashboard/operator'),
-  getAdminDashboard: () => api.get('/dashboard/admin'),
+  getAdminDashboard: (params) => api.get('/dashboard/admin', { params }),
 };
 
 // Production lines

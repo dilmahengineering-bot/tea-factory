@@ -318,12 +318,6 @@
   gap: 10px;
 }
 
-.planGridExpanded {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-}
-
 .planCard {
   background: #fafbfc;
   border: 1px solid #e5e7eb;
@@ -332,36 +326,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.planCardExpanded {
-  background: #fafbfc;
-  border: 1px solid #e5e7eb;
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  transition: all 0.2s ease;
-}
-
-.planCardExpanded:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: #d1d5db;
-}
-
-.planCardHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 8px;
-}
-
-.planCardFooter {
-  font-size: 0.8rem;
-  color: #9ca3af;
-  margin-top: 4px;
 }
 
 .planLine {

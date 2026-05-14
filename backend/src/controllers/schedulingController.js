@@ -468,12 +468,13 @@ const populatePlanRange = async (req, res) => {
 
 const getDashboardStats = async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const { date } = req.query;
+    const selectedDate = date || new Date().toISOString().split('T')[0];
     const [users, machines, plans, assignments] = await Promise.all([
       pool.query(`SELECT role, COUNT(*)::int FROM users WHERE is_active=true GROUP BY role`),
       pool.query(`SELECT COUNT(*)::int AS total FROM machines WHERE is_active=true`),
-      pool.query(`SELECT status, COUNT(*)::int FROM schedule_plans WHERE plan_date=$1 GROUP BY status`, [today]),
-      pool.query(`SELECT COUNT(DISTINCT operator_id)::int AS active_ops FROM assignments a JOIN schedule_plans sp ON sp.id=a.plan_id WHERE sp.plan_date=$1`, [today]),
+      pool.query(`SELECT status, COUNT(*)::int FROM schedule_plans WHERE plan_date=$1 GROUP BY status`, [selectedDate]),
+      pool.query(`SELECT COUNT(DISTINCT operator_id)::int AS active_ops FROM assignments a JOIN schedule_plans sp ON sp.id=a.plan_id WHERE sp.plan_date=$1`, [selectedDate]),
     ]);
     const userCounts = {};
     users.rows.forEach(r => { userCounts[r.role] = r.count; });
@@ -679,7 +680,8 @@ const reopenPlan = async (req, res) => {
 
 const getAdminDashboard = async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const { date } = req.query;
+    const selectedDate = date || new Date().toISOString().split('T')[0];
 
     const [
       lineDetails, lineMachines, lineOperators, lineAssignments,
@@ -722,7 +724,7 @@ const getAdminDashboard = async (req, res) => {
         LEFT JOIN assignments a ON a.plan_id = sp.id
         WHERE sp.plan_date = $1
         GROUP BY sp.line
-      `, [today]),
+      `, [selectedDate]),
 
       // Today's leaves
       pool.query(`
@@ -731,7 +733,7 @@ const getAdminDashboard = async (req, res) => {
         JOIN users u ON u.id = ol.operator_id
         WHERE ol.leave_date = $1 AND ol.approval_status IN ('approved', 'pending')
         GROUP BY u.dedicated_line
-      `, [today]),
+      `, [selectedDate]),
 
       // This week's leaves by day
       pool.query(`
@@ -741,12 +743,12 @@ const getAdminDashboard = async (req, res) => {
           AND ol.approval_status IN ('approved', 'pending')
         GROUP BY ol.leave_date, ol.leave_type
         ORDER BY ol.leave_date
-      `, [today]),
+      `, [selectedDate]),
 
       // Plan status breakdown for today
       pool.query(`
         SELECT line, shift, status FROM schedule_plans WHERE plan_date = $1 ORDER BY line, shift
-      `, [today]),
+      `, [selectedDate]),
 
       // Weekly assignment trend (last 7 days)
       pool.query(`
@@ -759,7 +761,7 @@ const getAdminDashboard = async (req, res) => {
         WHERE sp.plan_date >= $1::date - INTERVAL '6 days' AND sp.plan_date <= $1::date
         GROUP BY sp.plan_date
         ORDER BY sp.plan_date
-      `, [today]),
+      `, [selectedDate]),
 
       // User counts
       pool.query(`SELECT role, COUNT(*)::int AS count FROM users WHERE is_active = true GROUP BY role`),
