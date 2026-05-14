@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
-import { dashboardApi, leaveApi } from '../api/services';
+import { dashboardApi, leaveApi, schedulingApi } from '../api/services';
 import useAuthStore from '../store/authStore';
 import styles from './DashboardPage.module.css';
 
@@ -361,6 +361,10 @@ const CHART_COLORS = ['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0
 function AdminDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [filteredPlans, setFilteredPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
 
   useEffect(() => {
     dashboardApi.getAdminDashboard()
@@ -368,6 +372,26 @@ function AdminDashboard() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadFilteredPlans();
+  }, [selectedDate, selectedStatus]);
+
+  const loadFilteredPlans = async () => {
+    if (!selectedDate) return;
+    setPlansLoading(true);
+    try {
+      const params = { date: selectedDate };
+      if (selectedStatus) params.status = selectedStatus;
+      const res = await schedulingApi.getPlans(params);
+      setFilteredPlans(res.data || []);
+    } catch (err) {
+      console.error(err);
+      setFilteredPlans([]);
+    } finally {
+      setPlansLoading(false);
+    }
+  };
 
   if (loading) return <div className={styles.loadWrap}><div className="spinner spinner-lg" /></div>;
   if (!data) return <div className={styles.emptyCard}>Failed to load admin dashboard.</div>;
@@ -589,23 +613,66 @@ function AdminDashboard() {
         </div>
       </div>
 
-      {/* Today's plan status */}
+      {/* Plan status with date and status filters */}
       <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Today's plan status</h3>
-        {planStatus.length > 0 ? (
-          <div className={styles.planGrid}>
-            {planStatus.map((p, i) => (
-              <div key={i} className={styles.planCard}>
-                <div className={styles.planLine}>{p.line}</div>
-                <div className={styles.planShift}>{p.shift}</div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.5rem'}}>
+          <h3 className={styles.sectionTitle}>Plan status</h3>
+          <div style={{display:'flex',gap:'12px',alignItems:'center'}}>
+            <div className="form-group" style={{margin:0}}>
+              <label className="form-label" style={{fontSize:'0.875rem',marginBottom:'4px'}}>Date</label>
+              <input
+                type="date"
+                className="form-input"
+                value={selectedDate}
+                onChange={e => setSelectedDate(e.target.value)}
+                style={{width:'140px'}}
+              />
+            </div>
+            <div className="form-group" style={{margin:0}}>
+              <label className="form-label" style={{fontSize:'0.875rem',marginBottom:'4px'}}>Status</label>
+              <select
+                className="form-select"
+                value={selectedStatus}
+                onChange={e => setSelectedStatus(e.target.value)}
+                style={{width:'140px'}}
+              >
+                <option value="">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="submitted">Submitted</option>
+                <option value="rejected">Rejected</option>
+                <option value="engineer_approved">Engineer Approved</option>
+                <option value="approved">Approved</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {plansLoading ? (
+          <div className={styles.loadWrap}><div className="spinner" style={{width:24,height:24}} /></div>
+        ) : filteredPlans.length > 0 ? (
+          <div className={styles.planGridExpanded}>
+            {filteredPlans.map((p, i) => (
+              <div key={i} className={styles.planCardExpanded}>
+                <div className={styles.planCardHeader}>
+                  <div className={styles.planLine}>{p.line}</div>
+                  <div className={styles.planShift}>{p.shift}</div>
+                </div>
                 <span className={`badge badge-${p.status === 'approved' || p.status === 'engineer_approved' ? 'success' : p.status === 'submitted' ? 'info' : p.status === 'rejected' ? 'danger' : 'secondary'}`}>
-                  {p.status}
+                  {p.status.replace('_', ' ')}
                 </span>
+                <div className={styles.planCardFooter}>
+                  <small className="text-muted">{new Date(p.plan_date).toLocaleDateString('en-GB')}</small>
+                  {p.review_note && (
+                    <small className="text-muted" title={p.review_note} style={{display:'block',marginTop:'4px',maxHeight:'40px',overflow:'hidden',textOverflow:'ellipsis'}}>
+                      Note: {p.review_note.substring(0, 50)}...
+                    </small>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className={styles.emptyCard}>No plans created for today yet.</div>
+          <div className={styles.emptyCard}>No plans found for the selected date{selectedStatus && ` and status "${selectedStatus.replace('_', ' ').toLowerCase()}"`}.</div>
         )}
       </div>
     </>
